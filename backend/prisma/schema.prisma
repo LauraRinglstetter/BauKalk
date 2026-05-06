@@ -17,15 +17,147 @@ model Project {
   createdAt DateTime @default(now())
 
   projectInfo ProjectInfo?
+
+  rooms Room[]
 }
 
 model ProjectInfo {
   id         Int      @id @default(autoincrement())
   persons    Int
-  floors     Int
+  floors     String[]
   houseType  String
   createdAt  DateTime @default(now())
 
-  project   Project @relation(fields: [projectId], references: [id])
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   projectId Int @unique
+}
+
+model RoomCategory {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  name  String @unique
+
+  type  String @default("room")
+
+  templates RoomTemplate[]
+
+  furnitureTemplates FurnitureTemplate[] 
+}
+
+model RoomTemplate {
+  id         Int    @id @default(autoincrement())
+  name       String
+
+  category   RoomCategory @relation(fields: [categoryId], references: [id])
+  categoryId Int
+
+  rooms      Room[]
+  @@unique([name, categoryId])
+}
+
+model Room {
+  id        Int    @id @default(autoincrement())
+  name      String
+  floor     String
+  note      String?
+
+  project   Project @relation(fields: [projectId], references: [id])
+  projectId Int
+
+  template   RoomTemplate? @relation(fields: [templateId], references: [id])
+  templateId Int?
+
+  furnitures Furniture[]
+
+  kitchenItems KitchenItem[]
+
+
+  @@unique([projectId, templateId])
+}
+
+model Furniture {
+  id        Int     @id @default(autoincrement())
+  name      String
+
+  width     Float
+  depth     Float
+
+  side1     Float   // seitlich 1
+  side2     Float   // seitlich 2
+  front     Float   // vorne
+  back      Float   // hinten
+
+  quantity  Int
+
+  room      Room    @relation(fields: [roomId], references: [id])
+  roomId    Int
+
+  template   FurnitureTemplate? @relation(fields: [templateId], references: [id])
+  templateId Int?
+}
+
+model FurnitureTemplate {
+  id       Int    @id @default(autoincrement())
+  name     String
+
+  // optional: Default-Werte aus Excel
+  width    Float?
+  depth    Float?
+  side1    Float?
+  side2    Float?
+  front    Float?
+  back     Float?
+
+  category   RoomCategory @relation(fields: [categoryId], references: [id])
+  categoryId Int
+
+  furnitures Furniture[]
+}
+
+model KitchenTemplate {
+  id Int @id @default(autoincrement())
+
+  name String @unique
+
+  width Float?
+  depth Float?
+  height Float?
+  
+
+  storageType   KitchenStorageType @relation(fields: [storageTypeId], references: [id])
+  storageTypeId Int
+
+  items KitchenItem[]
+
+}
+
+model KitchenStorageType {
+  id   Int    @id @default(autoincrement())
+  key  String @unique
+  name String
+
+  templates KitchenTemplate[]
+  items KitchenItem[]
+
+}
+
+model KitchenItem {
+  id Int @id @default(autoincrement())
+
+  name String
+
+  width Float
+  depth Float
+  height Float?
+
+  quantity Int
+
+  room Room @relation(fields: [roomId], references: [id])
+  roomId Int
+
+  template KitchenTemplate? @relation(fields: [templateId], references: [id])
+  templateId Int?
+
+  storageType KitchenStorageType @relation(fields: [storageTypeId], references: [id])
+  storageTypeId Int
 }
