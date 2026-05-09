@@ -9,368 +9,300 @@ export default function KitchenPage() {
 
   const [kitchenTemplates, setKitchenTemplates] = useState<any[]>([]);
   const [kitchenRooms, setKitchenRooms] = useState<any[]>([]);
-
-  //um eigene Küchengeräte anzulegen
-  const [kitchenItems, setKitchenItems] = useState<any[]>([]);
-
   const [kitchenStorageTypes, setKitchenStorageTypes] = useState<any[]>([]);
 
-  //damit Breite, Tiefe, Höhe der TemplateItems überschrieben werden können ohne sie im Template zu ändern
+  // Schlüssel: "roomId_templateId", Wert: { quantity, width, depth, height, storageTypeId }
   const [templateItemData, setTemplateItemData] = useState<any>({});
 
+  // Schlüssel: roomId, Wert: Array von eigenen Geräten
+  const [customItems, setCustomItems] = useState<Record<number, any[]>>({});
+
+  const groups = [...new Set(kitchenTemplates.map((t) => t.group))];
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchData = async () => {
       const templates = await getKitchenTemplates();
       setKitchenTemplates(templates);
 
-      //holt alle Positionen aus der DB ins Frontend (Arbeitsplatte, Hochschrank, ...) aus projectInfoApi.ts
       const storageTypes = await getKitchenStorageTypes();
-        setKitchenStorageTypes(storageTypes);
+      setKitchenStorageTypes(storageTypes);
 
       if (projectId) {
         const rooms = await getRooms(projectId, true, false);
-
-        const filteredRooms = rooms.filter(
-          (room: any) => room.template?.category?.key === "kitchen"
+        const filtered = rooms.filter(
+          (r: any) => r.template?.category?.key === "kitchen"
         );
+        setKitchenRooms(filtered);
 
-        setKitchenRooms(filteredRooms);
+        // für jeden Raum + jedes Template einen Eintrag mit Standardwerten anlegen
+        const initial: any = {};
+        for (const room of filtered) {
+          for (const t of templates) {
+            const key = `${room.id}_${t.id}`;
+            initial[key] = {
+              quantity: t.defaultQuantity ?? 0,
+              width: t.width ?? 0,
+              depth: t.depth ?? 0,
+              height: t.height ?? 0,
+              storageTypeId: t.storageTypeId,
+            };
+          }
+        }
+        setTemplateItemData(initial);
       }
     };
 
-    fetch();
+    fetchData();
   }, [projectId]);
 
-    // eigene Küchengeräte hinzufügen
-    const handleAddCustomKitchenItem = () => {
-        setKitchenItems((prev) => [
-            ...prev,
-            {
-            id: Date.now(),
-            name: "",
-            roomId: "",
-            width: 0,
-            depth: 0,
-            height: 0,
-            quantity: 1,
-            storageTypeId: "",
-            isCustom: true,
-            },
-        ]);
-    };
+  const handleTemplateChange = (roomId: number, templateId: number, field: string, value: any) => {
+    const key = `${roomId}_${templateId}`;
+    setTemplateItemData((prev: any) => ({
+      ...prev,
+      [key]: { ...prev[key], [field]: value },
+    }));
+  };
 
-    //Alle Änderungen speichern
-    const handleSaveKitchenItems = async () => {
-    for (const template of kitchenTemplates) {
-        const data = templateItemData[template.id] || {};
+  const handleAddCustomItem = (roomId: number, group: string) => {
+    setCustomItems((prev) => ({
+      ...prev,
+      [roomId]: [
+        ...(prev[roomId] ?? []),
+        {
+          id: Date.now(),
+          group,
+          name: "",
+          width: 0,
+          depth: 0,
+          height: 0,
+          quantity: 1,
+          storageTypeId: "",
+        },
+      ],
+    }));
+  };
 
-        if (!data.roomId && kitchenRooms.length === 0) continue;
+  const handleCustomItemChange = (roomId: number, itemId: number, field: string, value: any) => {
+    setCustomItems((prev) => ({
+      ...prev,
+      [roomId]: (prev[roomId] ?? []).map((item) =>
+        item.id === itemId ? { ...item, [field]: value } : item
+      ),
+    }));
+  };
+
+  const handleSave = async () => {
+    // Template-Geräte speichern
+    for (const room of kitchenRooms) {
+      for (const template of kitchenTemplates) {
+        const key = `${room.id}_${template.id}`;
+        const data = templateItemData[key] || {};
+        if (!data.quantity || data.quantity <= 0) continue;
 
         await createKitchenItem({
-        name: template.name,
-        width: data.width ?? template.width ?? 0,
-        depth: data.depth ?? template.depth ?? 0,
-        height: data.height ?? template.height ?? undefined,
-        quantity: data.quantity ?? 1,
-        roomId: data.roomId,
-        templateId: template.id,
-        storageTypeId: data.storageTypeId ?? template.storageTypeId,
+          name: template.name,
+          width: data.width ?? template.width ?? 0,
+          depth: data.depth ?? template.depth ?? 0,
+          height: data.height ?? template.height ?? undefined,
+          quantity: data.quantity,
+          roomId: room.id,
+          templateId: template.id,
+          storageTypeId: data.storageTypeId ?? template.storageTypeId,
         });
+      }
     }
 
-    for (const item of kitchenItems) {
-        if (!item.name || !item.roomId || !item.storageTypeId) continue;
+    // Eigene Geräte speichern
+    for (const [roomIdStr, items] of Object.entries(customItems)) {
+      const roomId = Number(roomIdStr);
+      for (const item of items as any[]) {
+        if (!item.name || !item.storageTypeId || !item.quantity) continue;
 
         await createKitchenItem({
-        name: item.name,
-        width: item.width,
-        depth: item.depth,
-        height: item.height || undefined,
-        quantity: item.quantity,
-        roomId: item.roomId,
-        templateId: null,
-        storageTypeId: item.storageTypeId,
+          name: item.name,
+          width: item.width,
+          depth: item.depth,
+          height: item.height || undefined,
+          quantity: item.quantity,
+          roomId,
+          templateId: null,
+          storageTypeId: item.storageTypeId,
         });
+      }
     }
 
     alert("Küchengeräte gespeichert");
-    };
+  };
 
-
-    //Hifsfunktion für Änderungen an Template-Geräten
-    const handleTemplateItemChange = (
-        templateId: number,
-        field: string,
-        value: any
-        ) => {
-        setTemplateItemData((prev: any) => ({
-            ...prev,
-            [templateId]: {
-            ...prev[templateId],
-            [field]: value,
-            },
-        }));
-    };
-
-
+  const tableHeader = (
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Anzahl</th>
+        <th>Breite (m)</th>
+        <th>Tiefe (m)</th>
+        <th>Höhe (m)</th>
+        <th>Position</th>
+      </tr>
+    </thead>
+  );
 
   return (
     <div>
-      <button
-        onClick={() =>
-          navigate("/furniture", {
-            state: { projectId },
-          })
-        }
-      >
+      <button onClick={() => navigate("/furniture", { state: { projectId } })}>
         Zurück zu Möbeln
       </button>
 
       <h1>Küche</h1>
 
-      <h2>Küchenräume</h2>
       {kitchenRooms.length === 0 && <p>Keine Küchenräume gefunden.</p>}
 
-      <ul>
-        {kitchenRooms.map((room) => (
-          <li key={room.id}>
-            {room.name} ({room.floor})
-          </li>
-        ))}
-      </ul>
+      {/* Ebene 1: Räume */}
+      {kitchenRooms.map((room) => (
+        <section key={room.id}>
+          <h2>{room.name} ({room.floor})</h2>
 
-      <h2>Küchengeräte</h2>
+          {/* Ebene 2: Gruppen */}
+          {groups.map((group) => {
+            const groupTemplates = kitchenTemplates.filter((t) => t.group === group);
+            const groupCustomItems = (customItems[room.id] ?? []).filter(
+              (c) => c.group === group
+            );
 
-      <table border={1} cellPadding={8}>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>Raum</th>
-            <th>Anzahl</th>
-            <th>Breite</th>
-            <th>Tiefe</th>
-            <th>Höhe</th>
-            <th>Position</th>
-          </tr>
-        </thead>
+            return (
+              <section key={group}>
+                <h3>{group}</h3>
+                <table border={1} cellPadding={8}>
+                  {tableHeader}
+                  <tbody>
 
-        <tbody>
-          {kitchenTemplates.map((template) => (
-            <tr key={template.id}>
-              <td>{template.name}</td>
-              <td>
-                <select
-                    value={templateItemData[template.id]?.roomId ?? ""}
-                    onChange={(e) =>
-                        handleTemplateItemChange(template.id, "roomId", Number(e.target.value))
-                    }
-                    >
-                    <option value="">-- Raum wählen --</option>
-                    {kitchenRooms.map((room) => (
-                        <option key={room.id} value={room.id}>
-                        {room.name} ({room.floor})
-                        </option>
+                    {/* Template-Geräte */}
+                    {groupTemplates.map((template) => {
+                      const key = `${room.id}_${template.id}`;
+                      const data = templateItemData[key] ?? {};
+                      return (
+                        <tr key={template.id}>
+                          <td>{template.name}</td>
+                          <td>
+                            <input
+                              type="number"
+                              min={0}
+                              value={data.quantity ?? 0}
+                              onChange={(e) =>
+                                handleTemplateChange(room.id, template.id, "quantity", Number(e.target.value))
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              value={data.width ?? 0}
+                              onChange={(e) =>
+                                handleTemplateChange(room.id, template.id, "width", Number(e.target.value))
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              value={data.depth ?? 0}
+                              onChange={(e) =>
+                                handleTemplateChange(room.id, template.id, "depth", Number(e.target.value))
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              value={data.height ?? 0}
+                              onChange={(e) =>
+                                handleTemplateChange(room.id, template.id, "height", Number(e.target.value))
+                              }
+                            />
+                          </td>
+                          <td>
+                            <select
+                              value={data.storageTypeId ?? template.storageTypeId}
+                              onChange={(e) =>
+                                handleTemplateChange(room.id, template.id, "storageTypeId", Number(e.target.value))
+                              }
+                            >
+                              {kitchenStorageTypes.map((st) => (
+                                <option key={st.id} value={st.id}>{st.name}</option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {/* Eigene Geräte */}
+                    {groupCustomItems.map((item) => (
+                      <tr key={item.id} style={{ background: "#f5f5f5" }}>
+                        <td>
+                          <input
+                            value={item.name}
+                            placeholder="Eigenes Gerät"
+                            onChange={(e) => handleCustomItemChange(room.id, item.id, "name", e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(e) => handleCustomItemChange(room.id, item.id, "quantity", Number(e.target.value))}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={item.width}
+                            onChange={(e) => handleCustomItemChange(room.id, item.id, "width", Number(e.target.value))}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={item.depth}
+                            onChange={(e) => handleCustomItemChange(room.id, item.id, "depth", Number(e.target.value))}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            value={item.height}
+                            onChange={(e) => handleCustomItemChange(room.id, item.id, "height", Number(e.target.value))}
+                          />
+                        </td>
+                        <td>
+                          <select
+                            value={item.storageTypeId}
+                            onChange={(e) => handleCustomItemChange(room.id, item.id, "storageTypeId", Number(e.target.value))}
+                          >
+                            <option value="">-- Position wählen --</option>
+                            {kitchenStorageTypes.map((st) => (
+                              <option key={st.id} value={st.id}>{st.name}</option>
+                            ))}
+                          </select>
+                        </td>
+                      </tr>
                     ))}
-                </select>
-                </td>
-                <td>
-                    <input
-                        type="number"
-                        min={1}
-                        value={templateItemData[template.id]?.quantity ?? 1}
-                        onChange={(e) =>
-                        handleTemplateItemChange(template.id, "quantity", Number(e.target.value))
-                        }
-                    />
-                </td>
-              <td>
-                <input
-                    type="number"
-                    value={templateItemData[template.id]?.width ?? template.width ?? 0}
-                    onChange={(e) =>
-                    handleTemplateItemChange(template.id, "width", Number(e.target.value))
-                    }
-                />
-                </td>
 
-                <td>
-                <input
-                    type="number"
-                    value={templateItemData[template.id]?.depth ?? template.depth ?? 0}
-                    onChange={(e) =>
-                    handleTemplateItemChange(template.id, "depth", Number(e.target.value))
-                    }
-                />
-                </td>
+                  </tbody>
+                </table>
 
-                <td>
-                <input
-                    type="number"
-                    value={templateItemData[template.id]?.height ?? template.height ?? 0}
-                    onChange={(e) =>
-                    handleTemplateItemChange(template.id, "height", Number(e.target.value))
-                    }
-                />
-                </td>
-              <td>
-                <select
-                    value={templateItemData[template.id]?.storageTypeId ?? template.storageTypeId}
-                    onChange={(e) =>
-                        handleTemplateItemChange(
-                        template.id,
-                        "storageTypeId",
-                        Number(e.target.value)
-                        )
-                    }
-                    >
-                    {kitchenStorageTypes.map((storageType) => (
-                        <option key={storageType.id} value={storageType.id}>
-                        {storageType.name}
-                        </option>
-                    ))}
-                    </select>
-                </td>
-            </tr>
-          ))}
+                <button onClick={() => handleAddCustomItem(room.id, group)}>
+                  + Eigenes Gerät zu {group} hinzufügen
+                </button>
+              </section>
+            );
+          })}
+        </section>
+      ))}
 
-
-          {kitchenItems.map((item) => (
-            <tr key={item.id} style={{ background: "#f5f5f5" }}>
-                <td>
-                <input
-                    value={item.name}
-                    placeholder="Eigenes Gerät"
-                    onChange={(e) =>
-                    setKitchenItems((prev) =>
-                        prev.map((currentItem) =>
-                        currentItem.id === item.id
-                            ? { ...currentItem, name: e.target.value }
-                            : currentItem
-                        )
-                    )
-                    }
-                />
-                </td>
-
-                <td>
-                <select
-                    value={item.roomId}
-                    onChange={(e) =>
-                    setKitchenItems((prev) =>
-                        prev.map((currentItem) =>
-                        currentItem.id === item.id
-                            ? { ...currentItem, roomId: Number(e.target.value) }
-                            : currentItem
-                        )
-                    )
-                    }
-                >
-                    <option value="">-- Raum wählen --</option>
-                    {kitchenRooms.map((room) => (
-                    <option key={room.id} value={room.id}>
-                        {room.name} ({room.floor})
-                    </option>
-                    ))}
-                </select>
-                </td>
-                 <td>
-                    <input
-                        type="number"
-                        min={1}
-                        value={item.quantity}
-                        onChange={(e) =>
-                        setKitchenItems((prev) =>
-                            prev.map((currentItem) =>
-                            currentItem.id === item.id
-                                ? { ...currentItem, quantity: Number(e.target.value) }
-                                : currentItem
-                            )
-                        )
-                        }
-                    />
-                    </td>   
-                <td>
-                <input
-                    type="number"
-                    value={item.width}
-                    onChange={(e) =>
-                    setKitchenItems((prev) =>
-                        prev.map((currentItem) =>
-                        currentItem.id === item.id
-                            ? { ...currentItem, width: Number(e.target.value) }
-                            : currentItem
-                        )
-                    )
-                    }
-                />
-                </td>
-
-                <td>
-                <input
-                    type="number"
-                    value={item.depth}
-                    onChange={(e) =>
-                    setKitchenItems((prev) =>
-                        prev.map((currentItem) =>
-                        currentItem.id === item.id
-                            ? { ...currentItem, depth: Number(e.target.value) }
-                            : currentItem
-                        )
-                    )
-                    }
-                />
-                </td>
-
-                <td>
-                <input
-                    type="number"
-                    value={item.height}
-                    onChange={(e) =>
-                    setKitchenItems((prev) =>
-                        prev.map((currentItem) =>
-                        currentItem.id === item.id
-                            ? { ...currentItem, height: Number(e.target.value) }
-                            : currentItem
-                        )
-                    )
-                    }
-                />
-                </td>
-
-                <td>
-                <select
-                    value={item.storageTypeId}
-                    onChange={(e) =>
-                    setKitchenItems((prev) =>
-                        prev.map((currentItem) =>
-                        currentItem.id === item.id
-                            ? { ...currentItem, storageTypeId: Number(e.target.value) }
-                            : currentItem
-                        )
-                    )
-                    }
-                >
-                    <option value="">-- Position wählen --</option>
-                    {kitchenStorageTypes.map((storageType) => (
-                    <option key={storageType.id} value={storageType.id}>
-                        {storageType.name}
-                    </option>
-                    ))}
-                </select>
-                </td>
-            </tr>
-            ))}
-
-        </tbody>
-      </table>
-        <button onClick={handleAddCustomKitchenItem}>
-            + Eigenes Küchengerät hinzufügen
-        </button>
-        <button onClick={handleSaveKitchenItems}>
-            Speichern
-        </button>
-
+      <br />
+      <button onClick={handleSave}>Speichern</button>
     </div>
   );
 }

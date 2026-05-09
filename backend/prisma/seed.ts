@@ -154,27 +154,21 @@ const kitchenStorageTypes = [
 ];
 
 const kitchenTemplates = [
-  {
-    name: "Spüle",
-    storageTypeKey: "base_cabinet",
-    width: 0.8,
-    depth: 0.6,
-    height: 0.9,
-  },
-  {
-    name: "Geschirrspüler",
-    storageTypeKey: "base_cabinet",
-    width: 0.6,
-    depth: 0.6,
-    height: 0.9,
-  },
-  {
-    name: "Kühlschrank",
-    storageTypeKey: "tall_cabinet",
-    width: 0.6,
-    depth: 0.7,
-    height: 2.0,
-  },
+  // Grossgeräte
+  { group: "Großgeräte", name: "Spüle", defaultQuantity: 1, storageTypeKey: "countertop",   width: 1.0, depth: 0.6, height: 0.9 },
+  { group: "Großgeräte", name: "Spülmaschine", defaultQuantity: 1, storageTypeKey: "base_cabinet", width: 0.6, depth: 0.6, height: 0.9 },
+  { group: "Großgeräte", name: "2. Spüle",defaultQuantity: 0, storageTypeKey: "countertop",   width: 0.6, depth: 0.6, height: 0.9 },
+// usw.
+
+  //Kleingeräte
+  { group: "Kleingeräte", name: "Kaffeeautomat", defaultQuantity: 1, storageTypeKey: "countertop",   width: 0.6, depth: 0.6 },
+  { group: "Kleingeräte", name: "Kaffeemaschine", defaultQuantity: 1, storageTypeKey: "countertop",   width: 0.5, depth: 0.4 },
+  { group: "Kleingeräte", name: "Wasserkocher", defaultQuantity: 1, storageTypeKey: "countertop",   width: 0.3, depth: 0.2 },
+
+  //Töpfe
+  { group: "Töpfe", name: "Schnellkochtopf 6 L", defaultQuantity: 1, storageTypeKey: "base_cabinet", width: 0.25, depth: 0.25, height: 0.25 },
+  { group: "Töpfe", name: "Großer Topf 7-8 L", defaultQuantity: 1, storageTypeKey: "base_cabinet", width: 0.3,  depth: 0.3,  height: 0.25 },
+  { group: "Töpfe", name: "Pastatopf hoch", defaultQuantity: 1, storageTypeKey: "base_cabinet", width: 0.25, depth: 0.25, height: 0.3 },
 ];
 
 async function main() {
@@ -248,6 +242,8 @@ async function main() {
         name: template.name,
       },
       update: {
+        group: template.group,
+        defaultQuantity: template.defaultQuantity,
         width: template.width,
         depth: template.depth,
         height: template.height,
@@ -255,6 +251,8 @@ async function main() {
       },
       create: {
         name: template.name,
+        group: template.group,
+        defaultQuantity: template.defaultQuantity,
         width: template.width,
         depth: template.depth,
         height: template.height,

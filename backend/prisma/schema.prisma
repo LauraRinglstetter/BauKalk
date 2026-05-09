@@ -118,7 +118,8 @@ model KitchenTemplate {
   id Int @id @default(autoincrement())
 
   name String @unique
-
+  group String // "Großgeräte" | "Kleingeräte" | "Töpfe" 
+  defaultQuantity Int    @default(0) 
   width Float?
   depth Float?
   height Float?
