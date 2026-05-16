@@ -17,6 +17,7 @@ export default function FurniturePage() {
             if (!projectId) return;
 
             const data = await getRooms(projectId, true, true);
+            console.log("rooms data:", JSON.stringify(data, null, 2));
             setRooms(data); 
         };
 

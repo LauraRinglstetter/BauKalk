@@ -11,7 +11,7 @@ const prisma = new PrismaClient({ adapter });
 const categories = [
   {
     key: "entrance",
-    name: "Eingangsbereich",
+    name: "Eingangsbereich (ohne Dielen)",
     type: "room",
     templates: [
       {
@@ -156,8 +156,9 @@ const kitchenStorageTypes = [
 const kitchenTemplates = [
   // Grossgeräte
   { group: "Großgeräte", name: "Spüle", defaultQuantity: 1, storageTypeKey: "countertop",   width: 1.0, depth: 0.6, height: 0.9 },
-  { group: "Großgeräte", name: "Spülmaschine", defaultQuantity: 1, storageTypeKey: "base_cabinet", width: 0.6, depth: 0.6, height: 0.9 },
   { group: "Großgeräte", name: "2. Spüle",defaultQuantity: 0, storageTypeKey: "countertop",   width: 0.6, depth: 0.6, height: 0.9 },
+  { group: "Großgeräte", name: "Spülmaschine", defaultQuantity: 1, storageTypeKey: "base_cabinet", width: 0.6, depth: 0.6, height: 0.9 },
+  
 // usw.
 
   //Kleingeräte
@@ -172,9 +173,11 @@ const kitchenTemplates = [
 ];
 
 async function main() {
+  // Zuerst alle KitchenTemplates löschen, dann neu anlegen
+  await prisma.kitchenTemplate.deleteMany({});
   for (const category of categories) {
     const existingCategory = await prisma.roomCategory.upsert({
-      where: { name: category.name },
+      where: { key: category.key },
       update: {
         key: category.key,
         type: category.type,
@@ -207,13 +210,28 @@ async function main() {
     );
 
     if (furnitureConfig) {
-      await prisma.furnitureTemplate.createMany({
-        data: furnitureConfig.items.map((item) => ({
-          ...item,
-          categoryId: existingCategory.id,
-        })),
-        skipDuplicates: true,
-      });
+      for (const item of furnitureConfig.items) {
+        await prisma.furnitureTemplate.upsert({
+          where: {
+            name_categoryId: {
+              name: item.name,
+              categoryId: existingCategory.id,
+            },
+          },
+          update: {
+            width: item.width,
+            depth: item.depth,
+            side1: item.side1,
+            side2: item.side2,
+            front: item.front,
+            back: item.back,
+          },
+          create: {
+            ...item,
+            categoryId: existingCategory.id,
+          },
+        });
+      }
     }
   }
 

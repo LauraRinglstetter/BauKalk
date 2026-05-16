@@ -71,6 +71,9 @@ model Room {
 
   kitchenItems KitchenItem[]
 
+  kitchenDoors              KitchenDoor[]
+  kitchenStorageTypeSpacing KitchenStorageTypeSpacing[]
+
 
   @@unique([projectId, templateId])
 }
@@ -111,6 +114,8 @@ model FurnitureTemplate {
   category   RoomCategory @relation(fields: [categoryId], references: [id])
   categoryId Int
 
+  @@unique([name, categoryId])
+
   furnitures Furniture[]
 }
 
@@ -144,6 +149,7 @@ model KitchenStorageType {
 
 model KitchenItem {
   id Int @id @default(autoincrement())
+  customItemKey String? @unique 
 
   name String
 
@@ -159,6 +165,41 @@ model KitchenItem {
   template KitchenTemplate? @relation(fields: [templateId], references: [id])
   templateId Int?
 
+  group String?  // nur für Custom-Items relevant
+
   storageType KitchenStorageType @relation(fields: [storageTypeId], references: [id])
   storageTypeId Int
+
+  @@unique([roomId, templateId])
+}
+
+model KitchenDoor {
+  id       Int    @id @default(autoincrement())
+  type     String // "innentuer" | "durchgang" | "aussentuer"
+  quantity Int
+  width    Float
+  depth    Float
+  side1    Float  @default(0)
+  side2    Float  @default(0)
+  front    Float  @default(0.65)
+  back     Float  @default(0)
+
+  room   Room @relation(fields: [roomId], references: [id])
+  roomId Int
+
+  @@unique([roomId, type])
+}
+
+model KitchenStorageTypeSpacing {
+  id              Int    @id @default(autoincrement())
+  storageTypeName String
+  side1           Float  @default(0)
+  side2           Float  @default(0)
+  front           Float  @default(0.65)
+  back            Float  @default(0)
+
+  room   Room @relation(fields: [roomId], references: [id])
+  roomId Int
+
+  @@unique([roomId, storageTypeName])
 }
